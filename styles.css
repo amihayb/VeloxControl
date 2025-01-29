@@ -37,6 +37,7 @@ body {
   font-size: 16px;
   width: 90px;
   transform: none;
+  margin-bottom: 10px;
 }
 
 .input-group {

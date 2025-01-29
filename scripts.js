@@ -1,7 +1,13 @@
 let serialPort;
+let writer;
+let reader;
+
+let intervalMove;
+
 let motorOn = false;
 let joystickTr = 0;
 let joystickEl = 0;
+let changeDir = false;
 
 
 function openClosePort(event) {
@@ -26,6 +32,8 @@ async function requestSerialPort() {
     try {
         serialPort = await navigator.serial.requestPort();
         await serialPort.open({ baudRate: 115200 });   // Velox
+        writer = await serialPort.writable.getWriter();
+        reader = await serialPort.readable.getReader();
         console.log('Serial port opened successfully!');
         return true;
     } catch (error) {
@@ -34,31 +42,69 @@ async function requestSerialPort() {
     }
 }
 
-async function sendMsg(message) {
+async function sendMsg(message, envelope = true) {
     if (!serialPort) {
         console.error('Serial port not opened. Click "Open Serial Port" first.');
         return;
     }
-    const writer = serialPort.writable.getWriter();
+    //const writer = serialPort.writable.getWriter();
     //let message = 'Yes!';
     //message = message + '\r';
     //const message1 = [0xE4, 0xA5, 0x00, 0xD5, 0x0C, 0x09, 0x06, 0x06, 0xE8, 0x03, 0x00, 0x00, 0xC0, 0x40, 0xDA]; // Set V0 to 6
-    const prefix = [228, 165, 0, 213];
-    const suffix = 218;
-    let sent = [...prefix, message.length+3, ...message, suffix];
-    const data = new Uint8Array(sent);
-    //await writer.write(new TextEncoder().encode(message));
+    let data;
+    if (envelope) {
+        const prefix = [228, 165, 0, 213];
+        const suffix = 218;
+        data = new Uint8Array([...prefix, message.length+3, ...message, suffix]);
+    } else {
+        data = new Uint8Array(message);
+        //console.log(message);
+    }
     await writer.write(data);
-    writer.releaseLock();
-    console.log(`Sent: ${sent}`);
+    //await writer.write(new TextEncoder().encode(message));
+    
+    //writer.releaseLock();
+    //console.log(`Sent: ${sent}`);
 }
 
 async function closeSerialPort() {
     if (serialPort) {
+        await writer.releaseLock();
+        await reader.releaseLock();
         await serialPort.close();
         console.log('Serial port closed.');
     }
 }
+
+async function readMsg(message) {
+    // Send the message
+  
+    // Initialize the reader for the serial port
+    // let reader = serialPort.readable.getReader();
+  
+    try {
+      // Read data from the serial port
+      const { value, done } = await reader.read();
+      console.log(value);
+      if (value) {
+        // Convert Uint8Array to string and process the response
+        //const decodedValue = new TextDecoder().decode(value);
+        response = value;
+        console.log(response);
+        return response; // Return the processed response
+      } else {
+        console.warn("No data received or connection closed.");
+        return null;
+      }
+    } catch (error) {
+      console.error("Error reading from serial port:", error);
+      return null;
+    } finally {
+      // Always release the reader lock
+    //   await reader.releaseLock();
+    }
+  }
+
 
 function setMotor(motorReq){
     if (motorReq !== motorOn) {
@@ -125,7 +171,12 @@ function startScenario(scenarioNumber) {
             case 1:  // Homing - Set V0 to 6
                 // message = [0xE4, 0xA5, 0x00, 0xD5, 0x0C, 0x09, 0x06, 0x06, 0xE8, 0x03, 0x00, 0x00, 0xC0, 0x40, 0xDA]; // Set V0 to 6
                 // message = [9,6,6,232,3,0,0,192,64];
-                message = setV0(6);   // Homing
+                message = sendMsg(setV0(6));   // Homing
+                setTimeout(() => {
+                    sendMsg(setV0(12));
+                    console.log('Set drift done');
+                }, 22000);
+                
                 break;
 
             case 2:   // Stab
@@ -133,26 +184,36 @@ function startScenario(scenarioNumber) {
                 //message = [9,6,6,232,3]; // Set V0
                 //message.push(...get4Bytes(15));
                 setMotor(true);
+                sendMsg(message);
                 break
 
             case 3:   // Pano
                 message = setV0(14);   // Pano mode
                 sendMsg(message);
-                message = setV0(10);   // Motor On
                 setMotor(true);
+                message = setV0(10);   // Motor On
+                sendMsg(message);
                 break
 
             case 4:   // Pano Scan
                 panoScan();
                 message = [6,4,232,3];
+                sendMsg(message);
                 //message = [9,6,6,232,3]; // Set V0
                 //message.push(...get4Bytes(14));
                 // setMotor(true);
-                break                
+                break        
+                
+            case 5:   // Run Record
+                message = setV0(15);   // Stab Mode
+                setMotor(true);
+                sendMsg(message);
+                runRecord();
+                break 
         }
 
         console.log(message);
-        sendMsg(message);
+        //sendMsg(message);
     // } else {
     //     alert('Please turn on motors first');
     // }
@@ -164,14 +225,32 @@ function panoScan(){
     sendMsg( setV0(10) );   // Motor On
     setMotor(true);
 
+
+    if (intervalMove) {
+        clearInterval(intervalMove);
+        intervalMove = null;
+        console.log("Stopped sending commands");
+    } else {
+        console.log("Start sending commands");
+        intervalMove = setInterval(() => {
+            //if (readV18()) {
+                message = moveCmd(-7+18*changeDir,1);  // Move Tr
+                // message = moveCmd(-7+14*changeDir,0);  // Move El 
+                sendMsg(message);
+                changeDir = !changeDir;
+            //}
+        }, 270);// 170
+    }
+
     // sendMsg( moveCmd() )
 
     //sendMsg([6,4,232,3])
     //readFromSerial();
 }
 
+
 async function readFromSerial() {
-    const reader = serialPort.readable.getReader();
+    //const reader = serialPort.readable.getReader();
   
     try {
       while (true) {
@@ -195,7 +274,7 @@ async function readFromSerial() {
     } catch (error) {
       console.error("Error reading from serial port:", error);
     } finally {
-      reader.releaseLock();
+      //reader.releaseLock();
     }
   }
   
@@ -218,6 +297,18 @@ function sineMove(ax){
     } else {
         alert('Motors are off, \nPlease turn on motors first');
     }
+}
+
+function bombMsgs() {
+    // Send velocity command at 50Hz (20ms interval) for 4 seconds
+    intervalMove = setInterval(() => {
+        sendMsg(velCmd(5,0));
+    }, 20);
+
+    // Stop after 4 seconds
+    setTimeout(() => {
+        clearInterval(intervalMove);
+    }, 4000);
 }
 
 function playTune() {
@@ -267,9 +358,116 @@ function playLocalTone() {
     audioElement.play();
 }
 
+function runRecord() {
+    // Create file input element
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.txt';
+
+    // Trigger file selection dialog
+    fileInput.click();
+
+    // Handle file selection
+    fileInput.addEventListener('change', async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        try {
+            const text = await file.text();
+            console.log('File contents:', text);
+            // Process text file contents here
+            
+        } catch (error) {
+            console.error('Error reading file:', error);
+        }
+    });
+    // Handle file selection
+    fileInput.addEventListener('change', async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        try {
+            const text = await file.text();
+            const lines = text.split('\n');
+            
+            // Filter only XCD2 OUT messages first
+            const outMessages = lines
+                .filter(line => line.includes('XCD2 OUT'))
+                .map(line => {
+                    const dataMatch = line.match(/Data: (.*)/);
+                    if (dataMatch) {
+                        const hexValues = dataMatch[1].trim().split(' ');
+                        return hexValues.map(hex => parseInt(hex, 16));
+                    }
+                    return null;
+                })
+                .filter(msg => msg !== null);
+
+            // Send messages at 30Hz (approximately 33.33ms between messages)
+            const interval = 1000 / 50; // 20ms
+            
+            for (let i = 0; i < outMessages.length; i += 2) {
+                // Log message count every 10 messages
+                if (i % 20 === 0) {
+                    console.log(`Processing messages ${i}-${Math.min(i+19, outMessages.length-1)}`);
+                }
+
+                // Send first message
+                await sendMsg(outMessages[i], envelope=false);
+                const resp1 = await readMsg(outMessages[i]);
+                
+                // Send second message if it exists
+                if (i + 1 < outMessages.length) {
+                    await sendMsg(outMessages[i+1], envelope=false);
+                    const resp2 = await readMsg(outMessages[i+1]);
+                }
+
+                await new Promise(resolve => setTimeout(resolve, interval));
+
+                if (!window.responses) {
+                    window.responses = [];
+                }
+                if (resp1) {
+                    window.responses.push(resp1);
+                }
+                if (typeof resp2 !== 'undefined' && resp2) {
+                    window.responses.push(resp2);
+                }
+                
+                // After last messages, save responses to file
+                if (i >= outMessages.length - 2) {
+                    console.log('lastMsg');
+                    const blob = new Blob([window.responses.join('\n')], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'responses.txt';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    window.responses = []; // Clear responses array
+                }
+            }
+
+        } catch (error) {
+            console.error('Error reading file:', error);
+        }
+    });
+}
+
 function moveCmd(ang,ax){
 
     let msg = [8,5,2];
+    msg.push(...get4Bytes(ang));
+    msg.push(ax);
+
+    return msg;
+}
+
+function velCmd(ang,ax){
+
+    let msg = [8,5,3];
     msg.push(...get4Bytes(ang));
     msg.push(ax);
 

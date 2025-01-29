@@ -83,9 +83,12 @@
   <div class="break"></div>
   <div id="demo-select-group" class="input-group">
     <button class="button demo-button" onclick="startScenario(1)">Homing</button>
+    <button class="button demo-button" onclick="sendMsg(setV0(16))">Encoder Linear</button>
     <button class="button demo-button" onclick="startScenario(2)">Stab</button>
     <button class="button demo-button" onclick="startScenario(3)">Pano</button>
     <button class="button demo-button" onclick="startScenario(4)">Pano Scan</button>
+    <button class="button demo-button" onclick="bombMsgs()">Bomb Msgs</button>
+    <button class="button demo-button" onclick="startScenario(5)">Run Record</button>
   </div>
 
   <audio id="localAudio">
