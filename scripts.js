@@ -302,7 +302,7 @@ function sineMove(ax){
 function bombMsgs() {
     // Send velocity command at 50Hz (20ms interval) for 4 seconds
     intervalMove = setInterval(() => {
-        sendMsg(velCmd(5,0));
+        sendMsg(velCmd(5,1));
     }, 20);
 
     // Stop after 4 seconds
