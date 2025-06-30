@@ -195,16 +195,24 @@ function startScenario(scenarioNumber) {
                 sendMsg(message);
                 break
 
-            case 4:   // Pano Scan
-                panoScan();
+            case 4:   // Pano Scan TR
+                panoScan(1);  // TR axis
                 message = [6,4,232,3];
                 sendMsg(message);
                 //message = [9,6,6,232,3]; // Set V0
                 //message.push(...get4Bytes(14));
                 // setMotor(true);
-                break        
+                break
+            case 5:   // Pano Scan EL
+                panoScan(0);  // EL axis
+                message = [6,4,232,3];
+                sendMsg(message);
+                //message = [9,6,6,232,3]; // Set V0
+                //message.push(...get4Bytes(14));
+                // setMotor(true);
+                break       
                 
-            case 5:   // Run Record
+            case 6:   // Run Record
                 message = setV0(15);   // Stab Mode
                 setMotor(true);
                 sendMsg(message);
@@ -220,11 +228,10 @@ function startScenario(scenarioNumber) {
 }
 
 
-function panoScan(){
+function panoScan(ax = 1){  // Default to TR (1) if not specified
     sendMsg( setV0(14) );   // Pano mode
     sendMsg( setV0(10) );   // Motor On
     setMotor(true);
-
 
     if (intervalMove) {
         clearInterval(intervalMove);
@@ -234,8 +241,11 @@ function panoScan(){
         console.log("Start sending commands");
         intervalMove = setInterval(() => {
             //if (readV18()) {
-                message = moveCmd(-7+18*changeDir,1);  // Move Tr
-                // message = moveCmd(-7+14*changeDir,0);  // Move El 
+                if (ax === 1) {  // TR
+                    message = moveCmd(-7+18*changeDir,1);  // Move Tr
+                } else {  // EL
+                    message = moveCmd(-7+14*changeDir,0);  // Move El
+                }
                 sendMsg(message);
                 changeDir = !changeDir;
             //}
