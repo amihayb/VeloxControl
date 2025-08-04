@@ -494,3 +494,170 @@ function setV0(cmd){
 
 const get4Bytes = (number) => Array.from(new Uint8Array(new Float32Array([number]).buffer));
 
+// Camera functionality
+let currentStream = null;
+let availableCameras = [];
+
+async function toggleCamera() {
+    const button = document.getElementById('cameraButton');
+    const videoPanel = document.getElementById('videoPanel');
+    
+    if (button.textContent === 'Camera') {
+        // Try to connect to camera
+        await connectToCamera();
+    } else {
+        // Disconnect camera
+        disconnectCamera();
+    }
+}
+
+async function connectToCamera() {
+    try {
+        // First, enumerate devices to find FLIR cameras
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        availableCameras = videoDevices;
+        
+        console.log('Available video devices:', videoDevices.map(d => ({ label: d.label, deviceId: d.deviceId })));
+        
+        // Look for FLIR camera (case-insensitive search)
+        const flirCamera = videoDevices.find(device => 
+            device.label && device.label.toLowerCase().includes('flir')
+        );
+        
+        if (flirCamera) {
+            console.log('Found FLIR camera:', flirCamera.label);
+            // Auto-connect to FLIR camera
+            await startCameraStream(flirCamera.deviceId);
+        } else if (videoDevices.length === 1) {
+            // If only one camera is available, auto-connect to it
+            console.log('Only one camera available, auto-connecting:', videoDevices[0].label);
+            await startCameraStream(videoDevices[0].deviceId);
+        } else {
+            console.log('No FLIR camera found, showing selection dialog');
+            // Show camera selection dialog
+            showCameraSelection(videoDevices);
+        }
+    } catch (error) {
+        console.error('Error accessing camera devices:', error);
+        alert('Error accessing camera devices. Please check permissions.');
+    }
+}
+
+function showCameraSelection(devices) {
+    const dropdown = document.getElementById('cameraDropdown');
+    const selection = document.getElementById('cameraSelection');
+    
+    // Clear and populate dropdown
+    dropdown.innerHTML = '';
+    
+    // Add a default "Select a camera" option
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = 'Select a camera...';
+    dropdown.appendChild(defaultOption);
+    
+    devices.forEach((device, index) => {
+        const option = document.createElement('option');
+        option.value = device.deviceId;
+        option.textContent = device.label || `Camera ${index + 1}`;
+        dropdown.appendChild(option);
+    });
+    
+    // Auto-select the first camera if available
+    if (devices.length > 0) {
+        dropdown.value = devices[0].deviceId;
+    }
+    
+    // Show selection dialog
+    selection.style.display = 'flex';
+}
+
+function hideCameraSelection() {
+    const selection = document.getElementById('cameraSelection');
+    selection.style.display = 'none';
+}
+
+async function selectCamera() {
+    const dropdown = document.getElementById('cameraDropdown');
+    const selectedDeviceId = dropdown.value;
+    
+    if (selectedDeviceId && selectedDeviceId !== '') {
+        console.log('Selected camera device ID:', selectedDeviceId);
+        await startCameraStream(selectedDeviceId);
+        hideCameraSelection();
+    } else {
+        alert('Please select a camera from the dropdown');
+    }
+}
+
+async function startCameraStream(deviceId) {
+    try {
+        console.log('Starting camera stream with device ID:', deviceId);
+        
+        // Stop any existing stream
+        if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+        }
+        
+        // Start new stream
+        const constraints = {
+            video: {
+                deviceId: deviceId ? { exact: deviceId } : undefined
+            }
+        };
+        
+        console.log('Using constraints:', constraints);
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        currentStream = stream;
+        
+        // Display video
+        const video = document.getElementById('cameraVideo');
+        video.srcObject = stream;
+        
+        // Update UI
+        const button = document.getElementById('cameraButton');
+        const videoPanel = document.getElementById('videoPanel');
+        
+        button.textContent = 'Disconnect Camera';
+        button.style.background = '#dc3545';
+        videoPanel.style.display = 'block';
+        
+        console.log('Camera stream started successfully');
+        
+    } catch (error) {
+        console.error('Error starting camera stream:', error);
+        alert('Error starting camera stream. Please check camera permissions and try again.');
+    }
+}
+
+function disconnectCamera() {
+    // Stop the stream
+    if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+        currentStream = null;
+    }
+    
+    // Clear video element
+    const video = document.getElementById('cameraVideo');
+    video.srcObject = null;
+    
+    // Update UI
+    const button = document.getElementById('cameraButton');
+    const videoPanel = document.getElementById('videoPanel');
+    
+    button.textContent = 'Camera';
+    button.style.background = '#5898d4';
+    videoPanel.style.display = 'none';
+    
+    console.log('Camera disconnected');
+}
+
+// Handle page unload to clean up camera stream
+window.addEventListener('beforeunload', () => {
+    if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+    }
+});
+

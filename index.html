@@ -20,15 +20,20 @@
 </head>
 
 <body>
-  <li><img height="120" src="https://www.nanomotion.com/wp-content/uploads/image-removebg-preview-8.d110a0.webp"
-      class="attachment-full size-full wp-image-4606 entered lazyloaded" alt="Nanomotion Logo"
-      data-lazy-src="https://www.nanomotion.com/wp-content/uploads/image-removebg-preview-8.d110a0.webp"
-      data-ll-status="loaded" onclick="playTune()"> </li><br><br>
-  <li><img width="100%" src="./assets/logo-title.svg" alt="Blau Robotics"></li>
-  <div class="break"></div><br><br>
-  <div class="break"></div>
+  <div class="main-container">
+    <div class="control-panel">
+      <li><img height="120" src="https://www.nanomotion.com/wp-content/uploads/image-removebg-preview-8.d110a0.webp"
+          class="attachment-full size-full wp-image-4606 entered lazyloaded" alt="Nanomotion Logo"
+          data-lazy-src="https://www.nanomotion.com/wp-content/uploads/image-removebg-preview-8.d110a0.webp"
+          data-ll-status="loaded" onclick="playTune()"> </li><br><br>
+      <li><img width="100%" src="./assets/logo-title.svg" alt="Blau Robotics"></li>
+      <div class="break"></div><br><br>
+      <div class="break"></div>
 
   <li><button class="button head-button" id="connectButton" onclick="openClosePort(event)">Connect</button></li>
+  <div class="break"></div>
+  <div class="break"></div>
+  <li><button class="button head-button" id="cameraButton" onclick="toggleCamera()">Camera</button></li>
   <div class="break"></div>
   <div class="break"></div>
   <li><button class="button head-button" id="motorOnButton" onclick="motorState()">Motors On</button></li>
@@ -81,6 +86,19 @@
   </div>
 
   <div class="break"></div>
+  
+  <!-- Camera Selection Dropdown (hidden by default) -->
+  <div id="cameraSelection" class="camera-selection" style="display: none;">
+    <div class="camera-selection-content">
+      <h3>Select Camera</h3>
+      <select id="cameraDropdown" class="camera-dropdown">
+        <option value="">Loading cameras...</option>
+      </select>
+      <button class="button camera-select-button" onclick="selectCamera()">Connect</button>
+      <button class="button camera-cancel-button" onclick="hideCameraSelection()">Cancel</button>
+    </div>
+  </div>
+  
   <div id="demo-select-group" class="input-group">
     <button class="button demo-button" onclick="startScenario(1)">Homing</button>
     <button class="button demo-button" onclick="sendMsg(setV0(16))">Encoder Linear</button>
@@ -90,6 +108,18 @@
     <button class="button demo-button" onclick="startScenario(5)">Pano Scan EL</button>
     <button class="button demo-button" onclick="bombMsgs()">Bomb Msgs</button>
     <button class="button demo-button" onclick="startScenario(6)">Run Record</button>
+  </div>
+
+    </div>
+    
+    <!-- Video Panel -->
+    <div class="video-panel" id="videoPanel" style="display: none;">
+      <div class="video-container">
+        <h3>Camera Feed</h3>
+        <video id="cameraVideo" autoplay muted playsinline></video>
+        <button class="button camera-disconnect-button" onclick="disconnectCamera()">Disconnect Camera</button>
+      </div>
+    </div>
   </div>
 
   <audio id="localAudio">
